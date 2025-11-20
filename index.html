@@ -1267,7 +1267,7 @@
             if (comp.acquired) return; 
 
             const valuation = gameState.marketData[role].marketSize * (comp.share / 100) * 10;
-            const cost = Math.floor(valuation);
+            const cost = Math.floor(valuation*20);
 
             html += `
             <div class="bg-purple-900/10 border border-purple-500/30 p-3 rounded flex justify-between items-center hover:bg-purple-900/20 transition-colors">
