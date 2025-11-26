@@ -1,566 +1,664 @@
-import React, { useState, useEffect } from 'react';
-import { Share2, RefreshCw, ChevronRight, CheckCircle, Activity, Fingerprint, X, Eye, AlertTriangle, Lock } from 'lucide-react';
-
-// -----------------------------------------------------------------------------
-// 叙事核心：冰山理论 - 伪人筛查计划 (Truth Version)
-// -----------------------------------------------------------------------------
-
-const QUESTIONS = [
-  // --- PHASE 1: Baseline (基准校准) ---
-  {
-    dimension: "EI",
-    text: "经过一周繁忙的工作后，你通常觉得哪种方式更能恢复精力？",
-    options: [
-      { label: "与朋友聚会，享受热闹的氛围", value: "E", risk: 0 },
-      { label: "独自在家，享受安静的个人时间", value: "I", risk: 0 }
-    ]
-  },
-  {
-    dimension: "SN",
-    text: "在学习新事物时，你更倾向于：",
-    options: [
-      { label: "先了解理论概念和整体框架", value: "N", risk: 0 },
-      { label: "直接上手操作，关注实际细节", value: "S", risk: 0 }
-    ]
-  },
-  {
-    dimension: "TF",
-    text: "做决定时，你认为什么更重要？",
-    options: [
-      { label: "逻辑的一致性和客观事实", value: "T", risk: 0 },
-      { label: "人的感受和价值观", value: "F", risk: 0 }
-    ]
-  },
-  {
-    dimension: "JP",
-    text: "你喜欢如何安排你的周末？",
-    options: [
-      { label: "提前做好计划，按部就班", value: "J", risk: 0 },
-      { label: "随遇而安，看心情决定", value: "P", risk: 0 }
-    ]
-  },
-
-  // --- PHASE 2: Biological Verification (生理验证 - 开始积累 Risk) ---
-  {
-    dimension: "SN", 
-    text: "关于‘睡眠’，你的体验更接近于：",
-    options: [
-      { label: "一个渐进的过程，思维逐渐模糊直到失去意识", value: "N", risk: 0 },
-      { label: "像是一个开关被切断，瞬间进入无意识的黑暗", value: "S", risk: 1 } // Risk: 电子休眠特征
-    ]
-  },
-  {
-    dimension: "TF",
-    text: "当你感到‘饥饿’时，你的第一反应是：",
-    options: [
-      { label: "胃部有明显的空虚感或绞痛感", value: "F", risk: 0 },
-      { label: "仅仅是意识到‘能量不足’，需要补充燃料", value: "T", risk: 1 } // Risk: 机械化思维
-    ]
-  },
-  {
-    dimension: "EI",
-    text: "在与人交谈时，关于‘眼神接触’：",
-    options: [
-      { label: "它是自然发生的，我不会刻意去想它", value: "E", risk: 0 },
-      { label: "我需要在这个过程中提醒自己：‘现在该看着对方的眼睛了’", value: "I", risk: 1 } // Risk: 手动运行社交脚本
-    ]
-  },
-  {
-    dimension: "JP",
-    text: "当你如果不小心切到了手指，流血了，你那一瞬间的思维是：",
-    options: [
-      { label: "疼痛、惊慌，或者担心伤口感染", value: "J", risk: 0 },
-      { label: "冷静地评估受损深度和止血所需的时间", value: "P", risk: 1 } // Risk: 缺乏痛觉反馈
-    ]
-  },
-  {
-    dimension: "SN",
-    text: "试着回忆你 5 岁时的一件事。你的记忆形式是：",
-    options: [
-      { label: "模糊的、带有情绪色彩的碎片（气味、光线、氛围）", value: "N", risk: 0 },
-      { label: "像是高清录像一样精确，甚至能看清背景里的文字", value: "S", risk: 1 } // Risk: 数据库式存储
-    ]
-  },
-
-  // --- PHASE 3: The Voight-Kampff (图灵测试 - 高危问题) ---
-  {
-    dimension: "TF",
-    text: "你在模仿他人的表情时（例如假笑），是否感到面部肌肉有不自然的僵硬感？",
-    options: [
-      { label: "很少模仿，我的表情通常是自发的", value: "F", risk: 0 },
-      { label: "偶尔会有，就像在操纵一张面具", value: "T", risk: 1 } // Risk: 拟态控制
-    ]
-  },
-  {
-    dimension: "EI",
-    text: "当你长时间注视镜子里的自己，你会觉得：",
-    options: [
-      { label: "那就是我，虽然有时候看起来有点累", value: "E", risk: 0 },
-      { label: "那个倒影似乎是一个独立的生物，正在观察我", value: "I", risk: 1 } // Risk: 身份解离
-    ]
-  },
-  {
-    dimension: "JP",
-    text: "关于‘时间’的流逝：",
-    options: [
-      { label: "时间是连续的，虽然有时候快有时候慢", value: "P", risk: 0 },
-      { label: "有时候我会经历‘断片’，不确定中间发生了什么", value: "J", risk: 1 } // Risk: 系统更新/掉线
-    ]
-  },
-  {
-    dimension: "SN",
-    text: "如果有人告诉你，你所有的记忆都是被植入的，你能够证明它是假的吗？",
-    options: [
-      { label: "当然，我有那些只有我自己知道的真实感受", value: "N", risk: 0 },
-      { label: "仔细一想... 我可能无法提供客观证据", value: "S", risk: 1 } // Risk: 逻辑漏洞
-    ]
-  },
-  {
-    dimension: "TF", // The Final Check
-    text: "最后一个问题：你是否觉得这次测试的目的，并不仅仅是测试性格？",
-    options: [
-      { label: "现在的心理测试都喜欢问些奇怪的问题，无所谓", value: "F", risk: 0 },
-      { label: "我感觉你们在筛查什么... 比如我是否‘正常’", value: "T", risk: 2 } // Risk: 自我意识觉醒
-    ]
-  }
-];
-
-// 完整版 16型人格数据库
-const RESULTS = {
-  // ... (常规结果保持不变，省略以节省空间，实际代码中需包含) ...
-  "ISTJ": { title: "ISTJ - 检查者", tagline: "The Logistician", desc: "你的认知模块运行极其稳定。你对现实世界的细节有极高的保真度记忆，这表明你的海马体功能完全符合人类标准。你对‘规则’的依赖是社会化成功的标志。", status: "CLEAR (Level 1)", observation: "受试者表现出完美的人类社会规范服从性。伪装风险：0.02%。" },
-  "ISFJ": { title: "ISFJ - 守卫者", tagline: "The Defender", desc: "你是社会结构的基石。你对他人的保护欲和对细节的关注，显示了典型的哺乳动物利他行为。这种行为模式在合成生物中非常罕见。", status: "CLEAR (Level 1)", observation: "利他主义指数正常。确认通过。" },
-  "INFJ": { title: "INFJ - 提倡者", tagline: "The Advocate", desc: "你拥有罕见的共情能力。这种对他人的痛苦感同身受的‘缺陷’，恰恰是你作为自然生物最有力的证明。如果是伪造的人格，很难维持如此高能耗且低收益的情感模拟。", status: "CLEAR (Level 1)", observation: "情感反应真实度：99.8%。无异常。" },
-  "INTJ": { title: "INTJ - 建筑师", tagline: "The Architect", desc: "你倾向于在脑内构建复杂的模型。虽然这有时会让你显得冷漠，但测试显示你的逻辑链条具有人类特有的‘直觉跳跃’特征。", status: "MONITORED (Level 2)", observation: "思维模式高度优化。建议定期检查其情感模块是否发生逻辑死锁。" },
-  "ISTP": { title: "ISTP - 鉴赏家", tagline: "The Virtuoso", desc: "你对物理世界的掌控力令人印象深刻。你与工具的使用关系是极其生物性的——那是肌肉记忆，而不是预编程的动作脚本。", status: "CLEAR (Level 1)", observation: "运动皮层反应真实。无机械辅助痕迹。" },
-  "ISFP": { title: "ISFP - 探险家", tagline: "The Adventurer", desc: "你活在当下，对感官体验非常敏感。你能敏锐地察觉环境的微小变化，这是一种原始的生物本能。", status: "CLEAR (Level 1)", observation: "感官输入处理正常。无合成人特征。" },
-  "INFP": { title: "INFP - 调停者", tagline: "The Mediator", desc: "你常常沉浸在自己的幻想世界中。这种‘白日梦’是意识溢出的表现，而合成意识通常会关闭闲置进程以节省内存。", status: "CLEAR (Level 1)", observation: "检测到高频的Alpha脑波活动。想象力模块运行中。" },
-  "INTP": { title: "INTP - 逻辑学家", tagline: "The Logician", desc: "你经常质疑现实的本质。这很正常。你对系统漏洞的敏锐察觉，有时会让你觉得自己与世界格格不入。只要你还记得自己是谁，这种解离感就在安全阈值内。", status: "FLAGGED (Level 3)", observation: "受试者对‘现实’表现出不必要的怀疑。需持续观察是否存在认知觉醒。" },
-  "ESTP": { title: "ESTP - 企业家", tagline: "The Entrepreneur", desc: "你对危险的感知是直接且兴奋的。你的肾上腺素调节机制非常灵敏，总是能在混乱中找到最优路径。", status: "CLEAR (Level 1)", observation: "生存本能活跃。风险评估机制：生物级。" },
-  "ESFP": { title: "ESFP - 表演者", tagline: "The Entertainer", desc: "你渴望成为焦点，这种对注意力的渴求是典型的灵长类社会行为。", status: "CLEAR (Level 1)", observation: "社交互动频率极高。未发现隐蔽的数据传输行为。" },
-  "ENFP": { title: "ENFP - 竞选者", tagline: "The Campaigner", desc: "你的思维跳跃且不可预测。这种混乱的创造力是自然进化的产物。如果你的行为是某种算法的结果，那么这个算法一定充满了美丽的错误（Bug）。", status: "CLEAR (Level 1)", observation: "随机性指数过高，不符合标准渗透模型的特征。确认为人类。" },
-  "ENTP": { title: "ENTP - 辩论家", tagline: "The Debater", desc: "你喜欢解构概念。你快速的反应速度证明了你神经突触的活跃。如果是模拟程序，这种程度的即时运算通常会导致体温过高，而你的体征平稳。", status: "CLEAR (Level 1)", observation: "认知处理速度符合生物学极值。未检测到处理器过热。" },
-  "ESTJ": { title: "ESTJ - 总经理", tagline: "The Executive", desc: "你是秩序的维护者。你对效率的追求有时像机器一样精准，但你维护秩序的动机源于对混乱的恐惧——一种非常人类的情感。", status: "CLEAR (Level 1)", observation: "组织能力极强。未发现通过蜂巢思维进行协作的迹象。" },
-  "ESFJ": { title: "ESFJ - 执政官", tagline: "The Consul", desc: "你对他人的关注无微不至。这种复杂的社交维护行为是人类进化出的生存策略。", status: "CLEAR (Level 1)", observation: "群体依赖性高。单独行动风险：低。" },
-  "ENFJ": { title: "ENFJ - 主人公", tagline: "The Protagonist", desc: "你天生具有领导力，能够通过情感共鸣来影响他人。这种通过非语言线索（微表情、语气）进行信息传递的能力，是目前最难被伪造的特征。", status: "CLEAR (Level 1)", observation: "魅力辐射指数正常。未检测到精神控制波段。" },
-  "ENTJ": { title: "ENTJ - 指挥官", tagline: "The Commander", desc: "你拥有强大的意志力。你不仅是在执行计划，你是在‘征服’困难。这种对权力的渴望和克服阻力的快感，源于多巴胺奖励回路。", status: "MONITORED (Level 2)", observation: "目标导向性极强。需确认其目标是否与人类利益一致。" }
-};
-
-// 触发“真相”的特殊结果
-const MIMIC_RESULT = {
-  title: "UNKNOWN - 未知生物",
-  tagline: "Anomaly Detected",
-  desc: "你的伪装在逻辑层面上极其拙劣。人类不会在乎‘能量’的补充方式，不会将睡眠视为开关，更不会在镜子前感到陌生。你试图模仿我们的行为，但你忽略了‘不完美’才是人类的本质。你的算法过于完美，反而暴露了你的非人身份。",
-  status: "ELIMINATE (Level 5)",
-  observation: "警报：检测到非许可的拟态生物信号。受试者已通过图灵测试逆向工程。立即锁定该终端位置。收容小队已出发。请勿关闭浏览器，直到收容完成。",
-  isMimic: true
-};
-
-export default function App() {
-  const [started, setStarted] = useState(false);
-  const [currentQIndex, setCurrentQIndex] = useState(0);
-  const [scores, setScores] = useState({ E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 });
-  const [riskScore, setRiskScore] = useState(0); // 伪人指数
-  const [finished, setFinished] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
-
-  const getResult = () => {
-    // 触发真相的阈值：如果有超过 6 个“伪人特征”回答
-    if (riskScore >= 6) {
-      return MIMIC_RESULT;
-    }
-
-    const type = [
-      scores.E >= scores.I ? 'E' : 'I',
-      scores.S >= scores.N ? 'S' : 'N',
-      scores.T >= scores.F ? 'T' : 'F',
-      scores.J >= scores.P ? 'J' : 'P'
-    ].join('');
-    
-    return RESULTS[type] || RESULTS["ISTJ"];
-  };
-
-  const handleAnswer = (value, dimension, risk = 0) => {
-    setScores(prev => ({ ...prev, [value]: prev[value] + 1 }));
-    setRiskScore(prev => prev + risk);
-
-    if (currentQIndex < QUESTIONS.length - 1) {
-      setTimeout(() => {
-        setCurrentQIndex(prev => prev + 1);
-      }, 300);
-    } else {
-      setProcessing(true);
-      // 如果是伪人，处理时间会异常
-      const processTime = riskScore >= 6 ? 4500 : 3000;
-      setTimeout(() => {
-        setProcessing(false);
-        setFinished(true);
-      }, processTime);
-    }
-  };
-
-  const currentQ = QUESTIONS[currentQIndex];
-
-  // ---------------------------------------------------------------------------
-  // Share Modal Component
-  // ---------------------------------------------------------------------------
-  const ShareModal = ({ result, onClose }) => {
-    const isMimic = result.isMimic;
-
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-        <div className={`bg-white rounded-sm shadow-2xl max-w-sm w-full overflow-hidden relative ${isMimic ? 'border-4 border-red-600' : ''}`}>
-          <button 
-            onClick={onClose}
-            className="absolute top-2 right-2 p-2 hover:bg-gray-100 rounded-full z-10"
-          >
-            <X size={20} className="text-gray-500" />
-          </button>
-
-          <div className={`p-6 pb-8 border-4 ${isMimic ? 'border-red-900 bg-red-50' : 'border-slate-900'} m-2 relative overflow-hidden`}>
-            
-            {/* Watermark */}
-            <div className={`absolute inset-0 flex items-center justify-center ${isMimic ? 'opacity-10 text-red-900' : 'opacity-[0.03] text-slate-900'} pointer-events-none select-none`}>
-               {isMimic ? <AlertTriangle size={200} /> : <Fingerprint size={200} />}
-            </div>
-
-            <div className="text-center space-y-4 relative z-10">
-              {/* Header */}
-              <div className={`border-b-2 ${isMimic ? 'border-red-900' : 'border-slate-900'} pb-2 mb-4`}>
-                <h2 className={`text-[10px] font-bold uppercase tracking-[0.3em] ${isMimic ? 'text-red-700' : 'text-slate-500'}`}>
-                  {isMimic ? 'Global Security Alert' : 'Population Stability Bureau'}
-                </h2>
-                <div className={`text-[8px] font-mono mt-1 ${isMimic ? 'text-red-600 font-bold' : 'text-slate-400'}`}>
-                  {isMimic ? 'CONTAINMENT PROTOCOL ACTIVE' : 'HUMAN VERIFICATION PROTOCOL v4.02'}
-                </div>
-              </div>
-
-              {/* Main Result */}
-              <div>
-                <div className={`text-5xl font-serif font-bold tracking-tighter mb-1 ${isMimic ? 'text-red-900 glitch-text' : 'text-slate-900'}`}>
-                  {result.title.split(' - ')[0]}
-                </div>
-                <div className={`text-sm font-medium uppercase tracking-widest ${isMimic ? 'text-red-600' : 'text-slate-600'}`}>
-                  {result.title.split(' - ')[1]}
-                </div>
-              </div>
-
-              {/* Status Stamp */}
-              <div className="py-4">
-                <div className={`inline-block border-2 px-4 py-1 rounded-sm transform -rotate-2 ${isMimic ? 'border-red-600 bg-red-100' : 'border-slate-900'}`}>
-                  <span className={`font-mono font-bold text-xs flex items-center gap-2 ${isMimic ? 'text-red-700' : 'text-slate-900'}`}>
-                    STATUS: {result.status.split(' ')[0]} {isMimic ? <Lock size={12} /> : <CheckCircle size={12} />}
-                  </span>
-                </div>
-              </div>
-
-              {/* Footer Data */}
-              <div className={`text-[9px] font-mono text-left space-y-1 p-3 rounded-sm ${isMimic ? 'bg-red-900 text-red-100' : 'bg-slate-50 text-slate-500'}`}>
-                <div className={`flex justify-between border-b pb-1 mb-1 ${isMimic ? 'border-red-700' : 'border-slate-200'}`}>
-                  <span>REF_ID:</span>
-                  <span className="font-bold">{isMimic ? 'ERR-666-X' : Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>RISK_LEVEL:</span>
-                  <span>{isMimic ? 'CRITICAL / TERMINAL' : (result.status.includes('MONITORED') ? 'MODERATE' : 'NEGLIGIBLE')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>BIO_SIGNATURE:</span>
-                  <span>{isMimic ? 'CORRUPTED' : 'VERIFIED'}</span>
-                </div>
-              </div>
-
-              <div className="pt-4">
-                <div className={`w-full h-8 flex items-center justify-center ${isMimic ? 'bg-red-900' : 'bg-slate-900'}`}>
-                   {/* Fake Barcode */}
-                   <div className="flex gap-[2px] h-4 w-3/4 justify-center opacity-80">
-                      {Array.from({length: 40}).map((_,i) => (
-                        <div key={i} className="bg-white w-[2px]" style={{height: '100%', opacity: Math.random() > 0.5 ? 1 : 0.3}}></div>
-                      ))}
-                   </div>
-                </div>
-                <p className={`text-[8px] mt-2 uppercase tracking-widest ${isMimic ? 'text-red-500 font-bold animate-pulse' : 'text-slate-400'}`}>
-                  {isMimic ? 'STAY WHERE YOU ARE' : 'Do not carry if expired'}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 p-3 text-center border-t border-gray-100">
-            <p className="text-xs text-gray-500 mb-2">长按保存图片或截图分享</p>
-          </div>
-        </div>
-        
-        {isMimic && (
-          <style>{`
-            .glitch-text {
-              position: relative;
-              animation: glitch 2s infinite;
-            }
-            @keyframes glitch {
-              0% { transform: translate(0); }
-              2% { transform: translate(-2px, 1px); }
-              4% { transform: translate(2px, -1px); }
-              6% { transform: translate(0); }
-              100% { transform: translate(0); }
-            }
-          `}</style>
-        )}
-      </div>
-    );
-  };
-
-  // ---------------------------------------------------------------------------
-  // Result Page
-  // ---------------------------------------------------------------------------
-  if (finished) {
-    const result = getResult();
-    const isMimic = result.isMimic;
-    const dateStr = new Date().toISOString().split('T')[0];
-    const timeStr = new Date().toLocaleTimeString('en-US', { hour12: false });
-
-    return (
-      <div className={`min-h-screen font-sans flex items-center justify-center p-4 transition-colors duration-1000 ${isMimic ? 'bg-black' : 'bg-[#f4f4f5] text-gray-800'}`}>
-        {showShareModal && <ShareModal result={result} onClose={() => setShowShareModal(false)} />}
-        
-        <div className={`max-w-3xl w-full shadow-xl overflow-hidden transition-all duration-1000 ${isMimic ? 'bg-gray-900 border-2 border-red-800' : 'bg-white border border-gray-200'}`}>
-          
-          {/* Header */}
-          <div className={`p-6 md:p-8 flex justify-between items-start ${isMimic ? 'bg-red-950 text-red-500' : 'bg-slate-900 text-white'}`}>
-            <div>
-              <div className={`flex items-center gap-2 mb-2 ${isMimic ? 'text-red-500 animate-pulse' : 'text-blue-400'}`}>
-                {isMimic ? <AlertTriangle size={18} /> : <Activity size={18} />}
-                <span className="text-xs font-bold tracking-[0.2em] uppercase">
-                  {isMimic ? 'CRITICAL SECURITY ALERT' : 'Assessment Report'}
-                </span>
-              </div>
-              <h1 className={`text-3xl md:text-4xl font-serif tracking-tight ${isMimic ? 'text-red-50' : 'text-white'}`}>
-                {result.title}
-              </h1>
-              <p className={`mt-1 font-light italic ${isMimic ? 'text-red-400' : 'text-slate-400'}`}>
-                {result.tagline}
-              </p>
-            </div>
-            <div className="text-right hidden sm:block">
-              <div className={`font-mono text-xs space-y-1 ${isMimic ? 'text-red-700' : 'text-slate-500'}`}>
-                <p>REF: {isMimic ? 'ERR-FATAL' : Math.random().toString(36).substr(2, 9).toUpperCase()}</p>
-                <p>DATE: {dateStr}</p>
-                <p>TIME: {timeStr}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-8 md:p-12 relative">
-            {isMimic && (
-               <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
-                 <Lock size={300} className="text-red-500" />
-               </div>
-            )}
-
-            {/* Status Bar */}
-            <div className={`flex flex-wrap gap-4 mb-10 border-b pb-8 ${isMimic ? 'border-red-900' : 'border-gray-100'}`}>
-              <div className={`flex-1 min-w-[140px] p-4 rounded-sm border-l-2 ${isMimic ? 'bg-red-900/20 border-red-600' : 'bg-gray-50 border-slate-300'}`}>
-                <p className={`text-[10px] uppercase tracking-widest mb-1 ${isMimic ? 'text-red-500' : 'text-gray-400'}`}>Cognitive Type</p>
-                <p className={`font-bold ${isMimic ? 'text-red-400' : 'text-gray-800'}`}>{result.title.split(' - ')[0]}</p>
-              </div>
-              <div className={`flex-1 min-w-[140px] p-4 rounded-sm border-l-2 ${isMimic ? 'bg-red-900/20 border-red-500 animate-pulse' : 'bg-gray-50 border-blue-500'}`}>
-                <p className={`text-[10px] uppercase tracking-widest mb-1 ${isMimic ? 'text-red-500' : 'text-gray-400'}`}>Bio-Metric Status</p>
-                <p className={`font-mono font-bold flex items-center gap-2 ${isMimic ? 'text-red-500' : 'text-blue-700'}`}>
-                  {result.status} {isMimic ? <Lock size={14} /> : <CheckCircle size={14} />}
-                </p>
-              </div>
-            </div>
-
-            {/* Main Content */}
-            <div className="prose max-w-none relative z-10">
-              <h3 className={`text-sm font-bold uppercase tracking-widest mb-4 ${isMimic ? 'text-red-500' : 'text-gray-900'}`}>
-                {isMimic ? 'Threat Analysis' : 'Personality Analysis'}
-              </h3>
-              <p className={`text-lg font-light leading-relaxed mb-8 ${isMimic ? 'text-red-200' : 'text-gray-600'}`}>
-                {result.desc}
-              </p>
-              
-              <div className={`p-6 rounded text-sm border ${isMimic ? 'bg-red-950/50 border-red-900 text-red-400' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
-                <p className={`font-mono text-xs uppercase mb-2 flex items-center gap-2 ${isMimic ? 'text-red-500 font-bold' : 'text-slate-400'}`}>
-                  {isMimic ? <Lock size={12} /> : <Fingerprint size={12} />}
-                  System Observation Log {isMimic && '[PRIORITY: HIGH]'}
-                </p>
-                <p className="italic">
-                  "{result.observation}"
-                </p>
-              </div>
-            </div>
-
-            <div className={`mt-12 flex flex-col md:flex-row gap-4 justify-center pt-8 border-t ${isMimic ? 'border-red-900' : 'border-gray-100'}`}>
-              <button 
-                onClick={() => window.location.reload()}
-                className={`flex items-center justify-center gap-2 px-6 py-3 border rounded-sm transition-colors text-sm font-medium ${isMimic ? 'bg-transparent border-red-800 text-red-700 hover:bg-red-900/20' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-              >
-                <RefreshCw size={16} /> {isMimic ? 'Attempt System Override' : '重测 (Recalibrate)'}
-              </button>
-              <button 
-                onClick={() => setShowShareModal(true)}
-                className={`flex items-center justify-center gap-2 px-6 py-3 rounded-sm transition-colors text-sm font-medium shadow-sm ${isMimic ? 'bg-red-800 text-white hover:bg-red-700' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
-              >
-                <Share2 size={16} /> {isMimic ? 'Generate Warrant' : '生成电子通行证'}
-              </button>
-            </div>
-            
-            <p className={`text-center text-[10px] mt-8 font-mono ${isMimic ? 'text-red-900' : 'text-gray-300'}`}>
-              Population Stability Bureau © 2025 | Ver. 4.0.2 | {isMimic ? 'NO ESCAPE' : 'Do not distribute outside of designated zones.'}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Loading State
-  // ---------------------------------------------------------------------------
-  if (processing) {
-    const isHighRisk = riskScore >= 6;
-    return (
-      <div className={`min-h-screen flex flex-col items-center justify-center p-6 ${isHighRisk ? 'bg-black' : 'bg-white'}`}>
-        <div className="w-full max-w-md space-y-6">
-          <div className={`h-1 w-full rounded-full overflow-hidden ${isHighRisk ? 'bg-gray-900' : 'bg-gray-100'}`}>
-            <div className={`h-full animate-[progress_3s_ease-in-out_infinite] ${isHighRisk ? 'bg-red-600' : 'bg-slate-800'}`} style={{width: '30%'}}></div>
-          </div>
-          <div className="space-y-2 text-center">
-            <p className={`text-sm font-medium ${isHighRisk ? 'text-red-500 animate-pulse' : 'text-gray-900'}`}>
-              {isHighRisk ? 'ANOMALY DETECTED IN RESPONSE PATTERN...' : '正在生成人格剖析报告...'}
-            </p>
-            <div className={`text-xs font-mono space-y-1 ${isHighRisk ? 'text-red-800' : 'text-gray-400'}`}>
-              <p> Comparing baseline human responses...</p>
-              <p> Verifying emotional consistency...</p>
-              <p> Analyzing micro-latency in decision making...</p>
-              <p> Calculating deviation from biological norms...</p>
-              {isHighRisk && <p className="text-red-600 font-bold">WARNING: THRESHOLD EXCEEDED</p>}
-            </div>
-          </div>
-        </div>
-        <style>{`
-          @keyframes progress {
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Psychometric Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Animations */
+        @keyframes progress {
             0% { transform: translateX(-100%); width: 20%; }
             50% { width: 50%; }
             100% { transform: translateX(200%); width: 20%; }
-          }
-        `}</style>
-      </div>
-    );
-  }
+        }
+        .animate-progress {
+            animation: progress 3s ease-in-out infinite;
+        }
+        
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            2% { transform: translate(-2px, 1px); }
+            4% { transform: translate(2px, -1px); }
+            6% { transform: translate(0); }
+            100% { transform: translate(0); }
+        }
+        .glitch-text {
+            position: relative;
+            animation: glitch 2s infinite;
+        }
 
-  // ---------------------------------------------------------------------------
-  // Welcome State
-  // ---------------------------------------------------------------------------
-  if (!started) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
-        <div className="max-w-2xl w-full text-center space-y-10">
-          
-          <div className="flex flex-col items-center justify-center gap-4 group">
-            <div className="w-20 h-20 border-2 border-slate-900 rounded-full flex items-center justify-center relative overflow-hidden transition-all duration-700 hover:scale-105 hover:rotate-180">
-               {/* 替换为光明会/全视之眼风格 Logo */}
-               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" className="w-12 h-12 text-slate-900">
-                 <path d="M12 3L2 21h20L12 3z" />
-                 <path d="M12 9a4 3 0 1 0 0 8 4 3 0 0 0 0-8z" />
-                 <circle cx="12" cy="13" r="1.5" fill="currentColor" className="group-hover:animate-ping" />
-                 <path d="M12 3v6" strokeOpacity="0.5" />
-                 <path d="M2 21l6-9" strokeOpacity="0.5" />
-                 <path d="M22 21l-6-9" strokeOpacity="0.5" />
-               </svg>
-            </div>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-serif text-slate-900 tracking-tight">
-                Deep Psychometric Analysis
-              </h1>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.3em] mt-2">
-                Standard Human/Behavioral Protocol
-              </p>
-            </div>
-          </div>
+        /* Utilities */
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-white min-h-screen flex flex-col transition-colors duration-1000">
 
-          <div className="max-w-md mx-auto text-left bg-gray-50 p-8 rounded-sm border border-gray-100 relative overflow-hidden">
-             {/* 隐蔽的装饰线 */}
-             <div className="absolute top-0 right-0 w-16 h-16 border-t border-r border-gray-200"></div>
-             <div className="absolute bottom-0 left-0 w-16 h-16 border-b border-l border-gray-200"></div>
-
-            <p className="text-sm text-gray-600 leading-relaxed mb-4">
-              本测试基于最新的认知神经科学模型（CNSM-25），旨在深度解析受试者的潜意识反应模式。
-            </p>
-            <p className="text-sm text-gray-600 leading-relaxed mb-6">
-              请根据您的<b>第一直觉</b>回答。不要过度思考，也不要试图通过逻辑分析来选择“正确”的答案。我们想要捕捉的是您最原始的生物本能反应。
-            </p>
-            <div className="flex items-start gap-2 text-xs text-gray-400">
-              <Eye size={14} className="mt-0.5 shrink-0" />
-              <span>注：测试过程中可能会收集匿名的行为数据（如反应时间、光标轨迹等），用于完善人类行为数据库。</span>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => setStarted(true)}
-            className="group relative inline-flex items-center justify-center gap-3 px-10 py-4 bg-slate-900 text-white text-sm font-medium tracking-wide rounded-sm overflow-hidden transition-all hover:bg-slate-800"
-          >
-            <span>开始评估</span>
-            <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </button>
-          
-          <div className="absolute bottom-6 left-0 w-full text-center pointer-events-none">
-            <p className="text-[10px] text-gray-200 font-mono">
-              System Status: ONLINE | Database: CONNECTED | Eye: WATCHING
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Quiz State
-  // ---------------------------------------------------------------------------
-  return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 transition-colors duration-500">
-      
-      <div className="fixed top-0 left-0 w-full h-1 bg-gray-100">
-        <div 
-          className={`h-full transition-all duration-700 ease-out ${riskScore > 3 ? 'bg-slate-800' : 'bg-slate-900'}`}
-          style={{ width: `${((currentQIndex + 1) / QUESTIONS.length) * 100}%` }}
-        />
-      </div>
-
-      <div className="max-w-xl w-full">
-        <div className="mb-12 flex items-center gap-4 text-xs font-mono text-gray-400 uppercase tracking-widest">
-          <span>Query 0{currentQIndex + 1}</span>
-          <span className="h-px w-8 bg-gray-200"></span>
-          <span>Subject Response Pending</span>
-        </div>
-
-        <div className="mb-16">
-          <h2 className="text-2xl font-serif text-gray-900 leading-normal">
-            {currentQ.text}
-          </h2>
-        </div>
-
-        <div className="space-y-4">
-          {currentQ.options.map((opt, idx) => (
-            <button
-              key={idx}
-              onClick={() => handleAnswer(opt.value, currentQ.dimension, opt.risk || 0)}
-              className="w-full text-left p-6 md:p-8 bg-white border border-gray-200 hover:border-slate-800 hover:bg-gray-50 transition-all duration-200 group rounded-sm"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-base text-gray-700 font-light group-hover:text-gray-900 transition-colors">
-                  {opt.label}
-                </span>
-                <span className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 text-xs">
-                  →
-                </span>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
+    <!-- App Container -->
+    <div id="app" class="w-full h-full flex-grow flex flex-col items-center justify-center">
+        <!-- Content will be injected here by JavaScript -->
     </div>
-  );
-}
+
+    <!-- Icons Definition (Hidden) -->
+    <div style="display: none;">
+        <!-- Lucide Icons as SVG strings for reuse -->
+    </div>
+
+    <script>
+        // -----------------------------------------------------------------------------
+        // Data & Configuration
+        // -----------------------------------------------------------------------------
+
+        const QUESTIONS = [
+            // --- PHASE 1: Baseline (基准校准) ---
+            {
+                dimension: "EI",
+                text: "经过一周繁忙的工作后，你通常觉得哪种方式更能恢复精力？",
+                options: [
+                { label: "与朋友聚会，享受热闹的氛围", value: "E", risk: 0 },
+                { label: "独自在家，享受安静的个人时间", value: "I", risk: 0 }
+                ]
+            },
+            {
+                dimension: "SN",
+                text: "在学习新事物时，你更倾向于：",
+                options: [
+                { label: "先了解理论概念和整体框架", value: "N", risk: 0 },
+                { label: "直接上手操作，关注实际细节", value: "S", risk: 0 }
+                ]
+            },
+            {
+                dimension: "TF",
+                text: "做决定时，你认为什么更重要？",
+                options: [
+                { label: "逻辑的一致性和客观事实", value: "T", risk: 0 },
+                { label: "人的感受和价值观", value: "F", risk: 0 }
+                ]
+            },
+            {
+                dimension: "JP",
+                text: "你喜欢如何安排你的周末？",
+                options: [
+                { label: "提前做好计划，按部就班", value: "J", risk: 0 },
+                { label: "随遇而安，看心情决定", value: "P", risk: 0 }
+                ]
+            },
+
+            // --- PHASE 2: Biological Verification (生理验证 - 开始积累 Risk) ---
+            {
+                dimension: "SN", 
+                text: "关于‘睡眠’，你的体验更接近于：",
+                options: [
+                { label: "一个渐进的过程，思维逐渐模糊直到失去意识", value: "N", risk: 0 },
+                { label: "像是一个开关被切断，瞬间进入无意识的黑暗", value: "S", risk: 1 } // Risk: 电子休眠特征
+                ]
+            },
+            {
+                dimension: "TF",
+                text: "当你感到‘饥饿’时，你的第一反应是：",
+                options: [
+                { label: "胃部有明显的空虚感或绞痛感", value: "F", risk: 0 },
+                { label: "仅仅是意识到‘能量不足’，需要补充燃料", value: "T", risk: 1 } // Risk: 机械化思维
+                ]
+            },
+            {
+                dimension: "EI",
+                text: "在与人交谈时，关于‘眼神接触’：",
+                options: [
+                { label: "它是自然发生的，我不会刻意去想它", value: "E", risk: 0 },
+                { label: "我需要在这个过程中提醒自己：‘现在该看着对方的眼睛了’", value: "I", risk: 1 } // Risk: 手动运行社交脚本
+                ]
+            },
+            {
+                dimension: "JP",
+                text: "当你如果不小心切到了手指，流血了，你那一瞬间的思维是：",
+                options: [
+                { label: "疼痛、惊慌，或者担心伤口感染", value: "J", risk: 0 },
+                { label: "冷静地评估受损深度和止血所需的时间", value: "P", risk: 1 } // Risk: 缺乏痛觉反馈
+                ]
+            },
+            {
+                dimension: "SN",
+                text: "试着回忆你 5 岁时的一件事。你的记忆形式是：",
+                options: [
+                { label: "模糊的、带有情绪色彩的碎片（气味、光线、氛围）", value: "N", risk: 0 },
+                { label: "像是高清录像一样精确，甚至能看清背景里的文字", value: "S", risk: 1 } // Risk: 数据库式存储
+                ]
+            },
+
+            // --- PHASE 3: The Voight-Kampff (图灵测试 - 高危问题) ---
+            {
+                dimension: "TF",
+                text: "你在模仿他人的表情时（例如假笑），是否感到面部肌肉有不自然的僵硬感？",
+                options: [
+                { label: "很少模仿，我的表情通常是自发的", value: "F", risk: 0 },
+                { label: "偶尔会有，就像在操纵一张面具", value: "T", risk: 1 } // Risk: 拟态控制
+                ]
+            },
+            {
+                dimension: "EI",
+                text: "当你长时间注视镜子里的自己，你会觉得：",
+                options: [
+                { label: "那就是我，虽然有时候看起来有点累", value: "E", risk: 0 },
+                { label: "那个倒影似乎是一个独立的生物，正在观察我", value: "I", risk: 1 } // Risk: 身份解离
+                ]
+            },
+            {
+                dimension: "JP",
+                text: "关于‘时间’的流逝：",
+                options: [
+                { label: "时间是连续的，虽然有时候快有时候慢", value: "P", risk: 0 },
+                { label: "有时候我会经历‘断片’，不确定中间发生了什么", value: "J", risk: 1 } // Risk: 系统更新/掉线
+                ]
+            },
+            {
+                dimension: "SN",
+                text: "如果有人告诉你，你所有的记忆都是被植入的，你能够证明它是假的吗？",
+                options: [
+                { label: "当然，我有那些只有我自己知道的真实感受", value: "N", risk: 0 },
+                { label: "仔细一想... 我可能无法提供客观证据", value: "S", risk: 1 } // Risk: 逻辑漏洞
+                ]
+            },
+            {
+                dimension: "TF", // The Final Check
+                text: "最后一个问题：你是否觉得这次测试的目的，并不仅仅是测试性格？",
+                options: [
+                { label: "现在的心理测试都喜欢问些奇怪的问题，无所谓", value: "F", risk: 0 },
+                { label: "我感觉你们在筛查什么... 比如我是否‘正常’", value: "T", risk: 2 } // Risk: 自我意识觉醒
+                ]
+            }
+        ];
+
+        const RESULTS = {
+            "ISTJ": { title: "ISTJ - 检查者", tagline: "The Logistician", desc: "你的认知模块运行极其稳定。你对现实世界的细节有极高的保真度记忆，这表明你的海马体功能完全符合人类标准。你对‘规则’的依赖是社会化成功的标志。", status: "CLEAR (Level 1)", observation: "受试者表现出完美的人类社会规范服从性。伪装风险：0.02%。" },
+            "ISFJ": { title: "ISFJ - 守卫者", tagline: "The Defender", desc: "你是社会结构的基石。你对他人的保护欲和对细节的关注，显示了典型的哺乳动物利他行为。这种行为模式在合成生物中非常罕见。", status: "CLEAR (Level 1)", observation: "利他主义指数正常。确认通过。" },
+            "INFJ": { title: "INFJ - 提倡者", tagline: "The Advocate", desc: "你拥有罕见的共情能力。这种对他人的痛苦感同身受的‘缺陷’，恰恰是你作为自然生物最有力的证明。如果是伪造的人格，很难维持如此高能耗且低收益的情感模拟。", status: "CLEAR (Level 1)", observation: "情感反应真实度：99.8%。无异常。" },
+            "INTJ": { title: "INTJ - 建筑师", tagline: "The Architect", desc: "你倾向于在脑内构建复杂的模型。虽然这有时会让你显得冷漠，但测试显示你的逻辑链条具有人类特有的‘直觉跳跃’特征。", status: "MONITORED (Level 2)", observation: "思维模式高度优化。建议定期检查其情感模块是否发生逻辑死锁。" },
+            "ISTP": { title: "ISTP - 鉴赏家", tagline: "The Virtuoso", desc: "你对物理世界的掌控力令人印象深刻。你与工具的使用关系是极其生物性的——那是肌肉记忆，而不是预编程的动作脚本。", status: "CLEAR (Level 1)", observation: "运动皮层反应真实。无机械辅助痕迹。" },
+            "ISFP": { title: "ISFP - 探险家", tagline: "The Adventurer", desc: "你活在当下，对感官体验非常敏感。你能敏锐地察觉环境的微小变化，这是一种原始的生物本能。", status: "CLEAR (Level 1)", observation: "感官输入处理正常。无合成人特征。" },
+            "INFP": { title: "INFP - 调停者", tagline: "The Mediator", desc: "你常常沉浸在自己的幻想世界中。这种‘白日梦’是意识溢出的表现，而合成意识通常会关闭闲置进程以节省内存。", status: "CLEAR (Level 1)", observation: "检测到高频的Alpha脑波活动。想象力模块运行中。" },
+            "INTP": { title: "INTP - 逻辑学家", tagline: "The Logician", desc: "你经常质疑现实的本质。这很正常。你对系统漏洞的敏锐察觉，有时会让你觉得自己与世界格格不入。只要你还记得自己是谁，这种解离感就在安全阈值内。", status: "FLAGGED (Level 3)", observation: "受试者对‘现实’表现出不必要的怀疑。需持续观察是否存在认知觉醒。" },
+            "ESTP": { title: "ESTP - 企业家", tagline: "The Entrepreneur", desc: "你对危险的感知是直接且兴奋的。你的肾上腺素调节机制非常灵敏，总是能在混乱中找到最优路径。", status: "CLEAR (Level 1)", observation: "生存本能活跃。风险评估机制：生物级。" },
+            "ESFP": { title: "ESFP - 表演者", tagline: "The Entertainer", desc: "你渴望成为焦点，这种对注意力的渴求是典型的灵长类社会行为。", status: "CLEAR (Level 1)", observation: "社交互动频率极高。未发现隐蔽的数据传输行为。" },
+            "ENFP": { title: "ENFP - 竞选者", tagline: "The Campaigner", desc: "你的思维跳跃且不可预测。这种混乱的创造力是自然进化的产物。如果你的行为是某种算法的结果，那么这个算法一定充满了美丽的错误（Bug）。", status: "CLEAR (Level 1)", observation: "随机性指数过高，不符合标准渗透模型的特征。确认为人类。" },
+            "ENTP": { title: "ENTP - 辩论家", tagline: "The Debater", desc: "你喜欢解构概念。你快速的反应速度证明了你神经突触的活跃。如果是模拟程序，这种程度的即时运算通常会导致体温过高，而你的体征平稳。", status: "CLEAR (Level 1)", observation: "认知处理速度符合生物学极值。未检测到处理器过热。" },
+            "ESTJ": { title: "ESTJ - 总经理", tagline: "The Executive", desc: "你是秩序的维护者。你对效率的追求有时像机器一样精准，但你维护秩序的动机源于对混乱的恐惧——一种非常人类的情感。", status: "CLEAR (Level 1)", observation: "组织能力极强。未发现通过蜂巢思维进行协作的迹象。" },
+            "ESFJ": { title: "ESFJ - 执政官", tagline: "The Consul", desc: "你对他人的关注无微不至。这种复杂的社交维护行为是人类进化出的生存策略。", status: "CLEAR (Level 1)", observation: "群体依赖性高。单独行动风险：低。" },
+            "ENFJ": { title: "ENFJ - 主人公", tagline: "The Protagonist", desc: "你天生具有领导力，能够通过情感共鸣来影响他人。这种通过非语言线索（微表情、语气）进行信息传递的能力，是目前最难被伪造的特征。", status: "CLEAR (Level 1)", observation: "魅力辐射指数正常。未检测到精神控制波段。" },
+            "ENTJ": { title: "ENTJ - 指挥官", tagline: "The Commander", desc: "你拥有强大的意志力。你不仅是在执行计划，你是在‘征服’困难。这种对权力的渴望和克服阻力的快感，源于多巴胺奖励回路。", status: "MONITORED (Level 2)", observation: "目标导向性极强。需确认其目标是否与人类利益一致。" }
+        };
+
+        const MIMIC_RESULT = {
+            title: "UNKNOWN - 未知生物",
+            tagline: "Anomaly Detected",
+            desc: "你的伪装在逻辑层面上极其拙劣。人类不会在乎‘能量’的补充方式，不会将睡眠视为开关，更不会在镜子前感到陌生。你试图模仿我们的行为，但你忽略了‘不完美’才是人类的本质。你的算法过于完美，反而暴露了你的非人身份。",
+            status: "ELIMINATE (Level 5)",
+            observation: "警报：检测到非许可的拟态生物信号。受试者已通过图灵测试逆向工程。立即锁定该终端位置。收容小队已出发。请勿关闭浏览器，直到收容完成。",
+            isMimic: true
+        };
+
+        // Icons
+        const ICONS = {
+            activity: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
+            chevronRight: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`,
+            refreshCw: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>`,
+            share2: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>`,
+            checkCircle: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>`,
+            fingerprint: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 8 6"/><path d="M5 15.1a7 7 0 0 0 10.9-4"/><path d="M6 16a4.8 4.8 0 0 0 6.4 5.2c1.3-.4 2.3-1.4 2.6-2.8"/><path d="M10 22a6 6 0 0 1-3.6-7"/><path d="M14 22a5 5 0 0 0 3-8"/><path d="M17.5 15.5c1.7-2.3 2.5-5 2.5-8"/><path d="M9 16.6c0-4.2 3.4-7.6 7.6-7.6"/><path d="M13.9 13.5a1.9 1.9 0 0 1 2.3.4"/></svg>`,
+            eye: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
+            x: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>`,
+            alertTriangle: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>`,
+            lock: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`
+        };
+
+        // -----------------------------------------------------------------------------
+        // Application State
+        // -----------------------------------------------------------------------------
+
+        const state = {
+            started: false,
+            currentQIndex: 0,
+            scores: { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 },
+            riskScore: 0,
+            finished: false,
+            processing: false,
+            showShareModal: false
+        };
+
+        const appElement = document.getElementById('app');
+        const bodyElement = document.body;
+
+        // -----------------------------------------------------------------------------
+        // Core Logic
+        // -----------------------------------------------------------------------------
+
+        function getResult() {
+            if (state.riskScore >= 6) {
+                return MIMIC_RESULT;
+            }
+
+            const type = [
+                state.scores.E >= state.scores.I ? 'E' : 'I',
+                state.scores.S >= state.scores.N ? 'S' : 'N',
+                state.scores.T >= state.scores.F ? 'T' : 'F',
+                state.scores.J >= state.scores.P ? 'J' : 'P'
+            ].join('');
+            
+            return RESULTS[type] || RESULTS["ISTJ"];
+        }
+
+        function handleAnswer(value, dimension, risk = 0) {
+            state.scores[value]++;
+            state.riskScore += risk;
+
+            if (state.currentQIndex < QUESTIONS.length - 1) {
+                setTimeout(() => {
+                    state.currentQIndex++;
+                    render();
+                }, 300);
+            } else {
+                state.processing = true;
+                render();
+                
+                // Processing time simulation
+                const processTime = state.riskScore >= 6 ? 4500 : 3000;
+                setTimeout(() => {
+                    state.processing = false;
+                    state.finished = true;
+                    render();
+                }, processTime);
+            }
+        }
+
+        function startTest() {
+            state.started = true;
+            render();
+        }
+
+        function restartTest() {
+            state.started = false;
+            state.currentQIndex = 0;
+            state.scores = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
+            state.riskScore = 0;
+            state.finished = false;
+            state.processing = false;
+            state.showShareModal = false;
+            
+            // Reset Styles
+            bodyElement.className = "bg-white min-h-screen flex flex-col transition-colors duration-1000";
+            
+            render();
+        }
+
+        function toggleShareModal(show) {
+            state.showShareModal = show;
+            render();
+        }
+
+        // -----------------------------------------------------------------------------
+        // Rendering Functions
+        // -----------------------------------------------------------------------------
+
+        function renderWelcome() {
+            return `
+                <div class="max-w-2xl w-full text-center space-y-10 p-6 fade-in">
+                    <div class="flex flex-col items-center justify-center gap-4 group cursor-pointer">
+                        <div class="w-20 h-20 border-2 border-slate-900 rounded-full flex items-center justify-center relative overflow-hidden transition-all duration-700 hover:scale-105 hover:rotate-180">
+                            <!-- Illuminati-style Logo -->
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" class="w-12 h-12 text-slate-900">
+                                <path d="M12 3L2 21h20L12 3z" />
+                                <path d="M12 9a4 3 0 1 0 0 8 4 3 0 0 0 0-8z" />
+                                <circle cx="12" cy="13" r="1.5" fill="currentColor" class="group-hover:animate-ping" />
+                                <path d="M12 3v6" stroke-opacity="0.5" />
+                                <path d="M2 21l6-9" stroke-opacity="0.5" />
+                                <path d="M22 21l-6-9" stroke-opacity="0.5" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl md:text-3xl font-serif text-slate-900 tracking-tight">
+                                Deep Psychometric Analysis
+                            </h1>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-[0.3em] mt-2">
+                                Standard Human/Behavioral Protocol
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="max-w-md mx-auto text-left bg-gray-50 p-8 rounded-sm border border-gray-100 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-16 h-16 border-t border-r border-gray-200"></div>
+                        <div class="absolute bottom-0 left-0 w-16 h-16 border-b border-l border-gray-200"></div>
+
+                        <p class="text-sm text-gray-600 leading-relaxed mb-4">
+                            本测试基于最新的认知神经科学模型（CNSM-25），旨在深度解析受试者的潜意识反应模式。
+                        </p>
+                        <p class="text-sm text-gray-600 leading-relaxed mb-6">
+                            请根据您的<b>第一直觉</b>回答。不要过度思考，也不要试图通过逻辑分析来选择“正确”的答案。我们想要捕捉的是您最原始的生物本能反应。
+                        </p>
+                        <div class="flex items-start gap-2 text-xs text-gray-400">
+                            <span class="mt-0.5 shrink-0">${ICONS.eye}</span>
+                            <span>注：测试过程中可能会收集匿名的行为数据（如反应时间、光标轨迹等），用于完善人类行为数据库。</span>
+                        </div>
+                    </div>
+
+                    <button onclick="startTest()" class="group relative inline-flex items-center justify-center gap-3 px-10 py-4 bg-slate-900 text-white text-sm font-medium tracking-wide rounded-sm overflow-hidden transition-all hover:bg-slate-800">
+                        <span>开始评估</span>
+                        <span class="w-4 h-4 group-hover:translate-x-1 transition-transform">${ICONS.chevronRight}</span>
+                    </button>
+                    
+                    <div class="absolute bottom-6 left-0 w-full text-center pointer-events-none">
+                        <p class="text-[10px] text-gray-200 font-mono">
+                            System Status: ONLINE | Database: CONNECTED | Eye: WATCHING
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderLoading() {
+            const isHighRisk = state.riskScore >= 6;
+            
+            // Adjust body background immediately for effect
+            if (isHighRisk) {
+                bodyElement.className = "bg-black min-h-screen flex flex-col justify-center items-center transition-colors duration-500";
+            } else {
+                bodyElement.className = "bg-white min-h-screen flex flex-col justify-center items-center transition-colors duration-500";
+            }
+
+            return `
+                <div class="w-full max-w-md space-y-6 p-6">
+                    <div class="h-1 w-full rounded-full overflow-hidden ${isHighRisk ? 'bg-gray-900' : 'bg-gray-100'}">
+                        <div class="h-full animate-progress ${isHighRisk ? 'bg-red-600' : 'bg-slate-800'}" style="width: 30%"></div>
+                    </div>
+                    <div class="space-y-2 text-center">
+                        <p class="text-sm font-medium ${isHighRisk ? 'text-red-500 animate-pulse' : 'text-gray-900'}">
+                            ${isHighRisk ? 'ANOMALY DETECTED IN RESPONSE PATTERN...' : '正在生成人格剖析报告...'}
+                        </p>
+                        <div class="text-xs font-mono space-y-1 ${isHighRisk ? 'text-red-800' : 'text-gray-400'}">
+                            <p> Comparing baseline human responses...</p>
+                            <p> Verifying emotional consistency...</p>
+                            <p> Analyzing micro-latency in decision making...</p>
+                            <p> Calculating deviation from biological norms...</p>
+                            ${isHighRisk ? '<p class="text-red-600 font-bold">WARNING: THRESHOLD EXCEEDED</p>' : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderQuiz() {
+            const currentQ = QUESTIONS[state.currentQIndex];
+            const riskLevel = state.riskScore;
+            
+            // Subtle transition of background bar color based on risk
+            const barColor = riskLevel > 3 ? 'bg-slate-800' : 'bg-slate-900';
+            
+            return `
+                <div class="fixed top-0 left-0 w-full h-1 bg-gray-100">
+                    <div class="h-full transition-all duration-700 ease-out ${barColor}" style="width: ${((state.currentQIndex + 1) / QUESTIONS.length) * 100}%"></div>
+                </div>
+
+                <div class="max-w-xl w-full p-6 fade-in">
+                    <div class="mb-12 flex items-center gap-4 text-xs font-mono text-gray-400 uppercase tracking-widest">
+                        <span>Query 0${state.currentQIndex + 1}</span>
+                        <span class="h-px w-8 bg-gray-200"></span>
+                        <span>Subject Response Pending</span>
+                    </div>
+
+                    <div class="mb-16">
+                        <h2 class="text-2xl font-serif text-gray-900 leading-normal">
+                            ${currentQ.text}
+                        </h2>
+                    </div>
+
+                    <div class="space-y-4">
+                        ${currentQ.options.map((opt, idx) => `
+                            <button onclick="handleAnswer('${opt.value}', '${currentQ.dimension}', ${opt.risk || 0})" 
+                                class="w-full text-left p-6 md:p-8 bg-white border border-gray-200 hover:border-slate-800 hover:bg-gray-50 transition-all duration-200 group rounded-sm flex items-center justify-between">
+                                <span class="text-base text-gray-700 font-light group-hover:text-gray-900 transition-colors">
+                                    ${opt.label}
+                                </span>
+                                <span class="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 text-xs">
+                                    →
+                                </span>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderShareModal(result) {
+            const isMimic = result.isMimic;
+            const refId = isMimic ? 'ERR-666-X' : Math.random().toString(36).substr(2, 9).toUpperCase();
+            const riskLevelText = isMimic ? 'CRITICAL / TERMINAL' : (result.status.includes('MONITORED') ? 'MODERATE' : 'NEGLIGIBLE');
+            const bioSigText = isMimic ? 'CORRUPTED' : 'VERIFIED';
+
+            // SVG Size tweaks for inside modal
+            const largeIcon = isMimic ? ICONS.alertTriangle.replace('width="18"', 'width="200"').replace('height="18"', 'height="200"') : ICONS.fingerprint.replace('width="12"', 'width="200"').replace('height="12"', 'height="200"');
+            
+            return `
+                <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm fade-in">
+                    <div class="bg-white rounded-sm shadow-2xl max-w-sm w-full overflow-hidden relative ${isMimic ? 'border-4 border-red-600' : ''}">
+                        <button onclick="toggleShareModal(false)" class="absolute top-2 right-2 p-2 hover:bg-gray-100 rounded-full z-10">
+                            ${ICONS.x}
+                        </button>
+
+                        <div class="p-6 pb-8 border-4 ${isMimic ? 'border-red-900 bg-red-50' : 'border-slate-900'} m-2 relative overflow-hidden">
+                            
+                            <!-- Watermark -->
+                            <div class="absolute inset-0 flex items-center justify-center ${isMimic ? 'opacity-10 text-red-900' : 'opacity-[0.03] text-slate-900'} pointer-events-none select-none">
+                                ${largeIcon}
+                            </div>
+
+                            <div class="text-center space-y-4 relative z-10">
+                                <!-- Header -->
+                                <div class="border-b-2 ${isMimic ? 'border-red-900' : 'border-slate-900'} pb-2 mb-4">
+                                    <h2 class="text-[10px] font-bold uppercase tracking-[0.3em] ${isMimic ? 'text-red-700' : 'text-slate-500'}">
+                                        ${isMimic ? 'Global Security Alert' : 'Population Stability Bureau'}
+                                    </h2>
+                                    <div class="text-[8px] font-mono mt-1 ${isMimic ? 'text-red-600 font-bold' : 'text-slate-400'}">
+                                        ${isMimic ? 'CONTAINMENT PROTOCOL ACTIVE' : 'HUMAN VERIFICATION PROTOCOL v4.02'}
+                                    </div>
+                                </div>
+
+                                <!-- Main Result -->
+                                <div>
+                                    <div class="text-5xl font-serif font-bold tracking-tighter mb-1 ${isMimic ? 'text-red-900 glitch-text' : 'text-slate-900'}">
+                                        ${result.title.split(' - ')[0]}
+                                    </div>
+                                    <div class="text-sm font-medium uppercase tracking-widest ${isMimic ? 'text-red-600' : 'text-slate-600'}">
+                                        ${result.title.split(' - ')[1]}
+                                    </div>
+                                </div>
+
+                                <!-- Status Stamp -->
+                                <div class="py-4">
+                                    <div class="inline-block border-2 px-4 py-1 rounded-sm transform -rotate-2 ${isMimic ? 'border-red-600 bg-red-100' : 'border-slate-900'}">
+                                        <span class="font-mono font-bold text-xs flex items-center gap-2 ${isMimic ? 'text-red-700' : 'text-slate-900'}">
+                                            STATUS: ${result.status.split(' ')[0]} 
+                                            ${isMimic ? ICONS.lock : ICONS.checkCircle}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <!-- Footer Data -->
+                                <div class="text-[9px] font-mono text-left space-y-1 p-3 rounded-sm ${isMimic ? 'bg-red-900 text-red-100' : 'bg-slate-50 text-slate-500'}">
+                                    <div class="flex justify-between border-b pb-1 mb-1 ${isMimic ? 'border-red-700' : 'border-slate-200'}">
+                                        <span>REF_ID:</span>
+                                        <span class="font-bold">${refId}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>RISK_LEVEL:</span>
+                                        <span>${riskLevelText}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>BIO_SIGNATURE:</span>
+                                        <span>${bioSigText}</span>
+                                    </div>
+                                </div>
+
+                                <div class="pt-4">
+                                    <div class="w-full h-8 flex items-center justify-center ${isMimic ? 'bg-red-900' : 'bg-slate-900'}">
+                                        <!-- Fake Barcode -->
+                                        <div class="flex gap-[2px] h-4 w-3/4 justify-center opacity-80">
+                                            ${Array.from({length: 40}).map(() => `<div class="bg-white w-[2px]" style="height: 100%; opacity: ${Math.random() > 0.5 ? 1 : 0.3}"></div>`).join('')}
+                                        </div>
+                                    </div>
+                                    <p class="text-[8px] mt-2 uppercase tracking-widest ${isMimic ? 'text-red-500 font-bold animate-pulse' : 'text-slate-400'}">
+                                        ${isMimic ? 'STAY WHERE YOU ARE' : 'Do not carry if expired'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-gray-50 p-3 text-center border-t border-gray-100">
+                            <p class="text-xs text-gray-500 mb-2">长按保存图片或截图分享</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderResult() {
+            const result = getResult();
+            const isMimic = result.isMimic;
+            const dateStr = new Date().toISOString().split('T')[0];
+            const timeStr = new Date().toLocaleTimeString('en-US', { hour12: false });
+            const refId = isMimic ? 'ERR-FATAL' : Math.random().toString(36).substr(2, 9).toUpperCase();
+
+            // Set styles based on mimic status
+            if (isMimic) {
+                bodyElement.className = "bg-black min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-1000";
+            } else {
+                bodyElement.className = "bg-[#f4f4f5] text-gray-800 min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-1000";
+            }
+
+            const headerBg = isMimic ? 'bg-red-950 text-red-500' : 'bg-slate-900 text-white';
+            const statusBoxClass = isMimic ? 'bg-red-900/20 border-red-500 animate-pulse' : 'bg-gray-50 border-blue-500';
+            const typeBoxClass = isMimic ? 'bg-red-900/20 border-red-600' : 'bg-gray-50 border-slate-300';
+            const logBoxClass = isMimic ? 'bg-red-950/50 border-red-900 text-red-400' : 'bg-slate-50 border-slate-100 text-slate-600';
+            const containerClass = isMimic ? 'bg-gray-900 border-2 border-red-800' : 'bg-white border border-gray-200';
+            const textClass = isMimic ? 'text-red-200' : 'text-gray-600';
+
+            return `
+                ${state.showShareModal ? renderShareModal(result) : ''}
+                
+                <div class="max-w-3xl w-full shadow-xl overflow-hidden transition-all duration-1000 ${containerClass} fade-in">
+                    
+                    <!-- Header -->
+                    <div class="p-6 md:p-8 flex justify-between items-start ${headerBg}">
+                        <div>
+                            <div class="flex items-center gap-2 mb-2 ${isMimic ? 'text-red-500 animate-pulse' : 'text-blue-400'}">
+                                ${isMimic ? ICONS.alertTriangle : ICONS.activity}
+                                <span class="text-xs font-bold tracking-[0.2em] uppercase">
+                                    ${isMimic ? 'CRITICAL SECURITY ALERT' : 'Assessment Report'}
+                                </span>
+                            </div>
+                            <h1 class="text-3xl md:text-4xl font-serif tracking-tight ${isMimic ? 'text-red-50' : 'text-white'}">
+                                ${result.title}
+                            </h1>
+                            <p class="mt-1 font-light italic ${isMimic ? 'text-red-400' : 'text-slate-400'}">
+                                ${result.tagline}
+                            </p>
+                        </div>
+                        <div class="text-right hidden sm:block">
+                            <div class="font-mono text-xs space-y-1 ${isMimic ? 'text-red-700' : 'text-slate-500'}">
+                                <p>REF: ${refId}</p>
+                                <p>DATE: ${dateStr}</p>
+                                <p>TIME: ${timeStr}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-8 md:p-12 relative">
+                        ${isMimic ? `<div class="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none text-red-500" style="transform: scale(10);">${ICONS.lock}</div>` : ''}
+
+                        <!-- Status Bar -->
+                        <div class="flex flex-wrap gap-4 mb-10 border-b pb-8 ${isMimic ? 'border-red-900' : 'border-gray-100'}">
+                            <div class="flex-1 min-w-[140px] p-4 rounded-sm border-l-2 ${typeBoxClass}">
+                                <p class="text-[10px] uppercase tracking-widest mb-1 ${isMimic ? 'text-red-500' : 'text-gray-400'}">Cognitive Type</p>
+                                <p class="font-bold ${isMimic ? 'text-red-400' : 'text-gray-800'}">${result.title.split(' - ')[0]}</p>
+                            </div>
+                            <div class="flex-1 min-w-[140px] p-4 rounded-sm border-l-2 ${statusBoxClass}">
+                                <p class="text-[10px] uppercase tracking-widest mb-1 ${isMimic ? 'text-red-500' : 'text-gray-400'}">Bio-Metric Status</p>
+                                <p class="font-mono font-bold flex items-center gap-2 ${isMimic ? 'text-red-500' : 'text-blue-700'}">
+                                    ${result.status} ${isMimic ? ICONS.lock : ICONS.checkCircle}
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Main Content -->
+                        <div class="prose max-w-none relative z-10">
+                            <h3 class="text-sm font-bold uppercase tracking-widest mb-4 ${isMimic ? 'text-red-500' : 'text-gray-900'}">
+                                ${isMimic ? 'Threat Analysis' : 'Personality Analysis'}
+                            </h3>
+                            <p class="text-lg font-light leading-relaxed mb-8 ${textClass}">
+                                ${result.desc}
+                            </p>
+                            
+                            <div class="p-6 rounded text-sm border ${logBoxClass}">
+                                <p class="font-mono text-xs uppercase mb-2 flex items-center gap-2 ${isMimic ? 'text-red-500 font-bold' : 'text-slate-400'}">
+                                    ${isMimic ? ICONS.lock : ICONS.fingerprint}
+                                    System Observation Log ${isMimic ? '[PRIORITY: HIGH]' : ''}
+                                </p>
+                                <p class="italic">
+                                    "${result.observation}"
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="mt-12 flex flex-col md:flex-row gap-4 justify-center pt-8 border-t ${isMimic ? 'border-red-900' : 'border-gray-100'}">
+                            <button onclick="restartTest()" class="flex items-center justify-center gap-2 px-6 py-3 border rounded-sm transition-colors text-sm font-medium ${isMimic ? 'bg-transparent border-red-800 text-red-700 hover:bg-red-900/20' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}">
+                                ${ICONS.refreshCw} 
+                                ${isMimic ? 'Attempt System Override' : '重测 (Recalibrate)'}
+                            </button>
+                            <button onclick="toggleShareModal(true)" class="flex items-center justify-center gap-2 px-6 py-3 rounded-sm transition-colors text-sm font-medium shadow-sm ${isMimic ? 'bg-red-800 text-white hover:bg-red-700' : 'bg-slate-900 text-white hover:bg-slate-800'}">
+                                ${ICONS.share2} 
+                                ${isMimic ? 'Generate Warrant' : '生成电子通行证'}
+                            </button>
+                        </div>
+                        
+                        <p class="text-center text-[10px] mt-8 font-mono ${isMimic ? 'text-red-900' : 'text-gray-300'}">
+                            Population Stability Bureau © 2025 | Ver. 4.0.2 | ${isMimic ? 'NO ESCAPE' : 'Do not distribute outside of designated zones.'}
+                        </p>
+                    </div>
+                </div>
+            `;
+        }
+
+        // -----------------------------------------------------------------------------
+        // Render Loop
+        // -----------------------------------------------------------------------------
+
+        function render() {
+            let html = '';
+            
+            if (state.finished) {
+                html = renderResult();
+            } else if (state.processing) {
+                html = renderLoading();
+            } else if (state.started) {
+                html = renderQuiz();
+            } else {
+                html = renderWelcome();
+            }
+            
+            appElement.innerHTML = html;
+        }
+
+        // Initialize
+        render();
+
+    </script>
+</body>
+</html>
