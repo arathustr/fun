@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电子科大女生联系方式大全(内部整理版)</title>
+    <style>
+        body {
+            font-family: "SimSun", "宋体", serif;
+            background-color: #f0f0f0;
+            margin: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #cc0000;
+            font-size: 24px;
+            text-decoration: underline;
+        }
+        .container {
+            width: 95%;
+            margin: 0 auto;
+            background-color: #fff;
+            border: 1px solid #999;
+            padding: 10px;
+        }
+        .filters {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #e0e0e0;
+            border: 1px solid #000;
+        }
+        select {
+            padding: 5px;
+            margin-right: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #003366;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        tr:hover {
+            background-color: #ffffcc;
+            cursor: pointer;
+        }
+        .rating-s-plus {
+            color: #ff0000;
+            font-weight: bold;
+        }
+        .rating-s {
+            color: #cc00cc;
+            font-weight: bold;
+        }
+        .rating-a {
+            color: #000;
+        }
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+        }
+        #loading {
+            text-align: center;
+            font-size: 18px;
+            color: red;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>【绝密】电子科大女生联系方式大全 (2024最新整理)</h1>
+        <p style="text-align: center; font-size: 12px; color: red;">*仅供内部交流，严禁外传，后果自负*</p>
+        
+        <div class="filters">
+            <label>筛选学院：</label>
+            <select id="collegeSelect" onchange="renderTable()">
+                <option value="all">-- 所有学院 --</option>
+            </select>
+            
+            <label>筛选年级：</label>
+            <select id="gradeSelect" onchange="renderTable()">
+                <option value="all">-- 所有年级 --</option>
+                <option value="大一">大一</option>
+                <option value="大二">大二</option>
+                <option value="大三">大三</option>
+                <option value="大四">大四</option>
+                <option value="研一">研一</option>
+                <option value="研二">研二</option>
+                <option value="研三">研三</option>
+            </select>
+            
+            <span style="float: right; font-size: 12px; margin-top: 5px;">共收录数据：<span id="count">0</span> 条</span>
+        </div>
+
+        <div id="loading">正在解密数据库...</div>
+
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th style="width: 10%;">姓名</th>
+                    <th style="width: 20%;">学院</th>
+                    <th style="width: 10%;">年级</th>
+                    <th style="width: 15%;">联系电话</th>
+                    <th style="width: 10%;">评级</th>
+                    <th style="width: 35%;">简短评价 (来自论坛/投稿)</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <!-- 数据行 -->
+            </tbody>
+        </table>
+
+        <div class="footer">
+            Designed by UESTC_LSP_Association | Update: 2024-10-24
+        </div>
+    </div>
+
+    <script>
+        const TARGET_COUNT = 359;
+        
+        const colleges = [
+            "信息与通信工程学院", "电子科学与工程学院", "材料与能源学院", "机械与电气工程学院", 
+            "光电科学与工程学院", "自动化工程学院", "资源与环境学院", "计算机科学与工程学院", 
+            "信息与软件工程学院", "航空航天学院", "数学科学学院", "物理学院", "医学院", 
+            "生命科学与技术学院", "经济与管理学院", "公共管理学院", "外国语学院", 
+            "马克思主义学院", "格拉斯哥学院", "英才学院"
+        ];
+        
+        const grades = ["大一", "大二", "大三", "大四", "研一", "研二", "研三"];
+        
+        // --- 名字生成库 (进一步扩充) ---
+        const surnames = "李王张刘陈杨赵黄周吴徐孙胡朱高林何郭马罗梁宋郑谢韩唐冯于董萧程曹袁邓许傅沈曾彭吕苏卢蒋蔡贾丁魏薛叶阎余潘杜戴夏钟汪田任姜范方石姚谭廖邹熊金陆郝孔白崔康毛邱秦江史顾侯邵孟龙万段雷钱汤尹黎易常武乔妹欧阳上官皇甫慕容";
+        
+        const nameChars_Modern = "梓涵诗梦琪雅雨可楚语思一诺依悦灵瑶安娜子微伊苏若"; 
+        const nameChars_Classic = "静文慧敏娟兰芳萍红梅霞英丽华洁秀玉珍珠芬"; 
+        const nameChars_Neutral = "小凡晨乐宁希君瑞天楠嘉钰汶卓易平"; 
+        const nameChars_Single = "雪冰月丹菲微音珂岚琳倩彤莫念"; 
+
+        // --- 基础评价库 (静态精品) ---
+        const baseComments = [
+            "长得像新垣结衣，不接受反驳", "素颜一般，化妆后S级", "腿长", "太瘦了", 
+            "有点婴儿肥，挺可爱的", "这颜值在信软能排前三", "照片P得太过了，真人A-吧", 
+            "皮肤巨白！！！", "眼镜娘赛高", "短发控的福音", 
+            "长得有点像三上...", "笑起来有两个酒窝", "身高估计有175，气场太强", 
+            "一般，不知道为什么这么多人舔", "发际线有点高hhh", 
+            "典型的成都妹子，皮肤好", "稍微有点黑，但是五官立体", "侧颜无敌",
+            "发量令人羡慕，不像学计算机的", "眼睛很大，像洋娃娃", "很有港风美女的感觉",
+            "笑起来很治愈，像初恋", "真人比照片好看多了", "有点像陈都灵",
+            "JK半永久，没见过穿常服", "经常穿汉服上课，挺勇的", "衣品很好，很会打扮", 
+            "总是穿一身黑，酷酷的", "喜欢穿oversize的卫衣", "每天妆都化得很浓", 
+            "包包全是名牌，富婆求包养", "总是戴着口罩，不知道长啥样", "穿搭很日系", 
+            "有点非主流，欣赏不来", "运动风，经常见她穿瑜伽裤", "很会戴配饰，耳环都很好看",
+            "每天都在取快递，拆包达人", "美甲做得花里胡哨的", "喜欢穿马丁靴",
+            "总是戴着棒球帽", "风格很多变，今天辣妹明天森系", "身上总是有很香的味道",
+            "经常在立人楼通宵自习，卷王", "图书馆二楼常驻人口", "食堂抢饭跑得贼快", 
+            "每天晚上都在操场跑步", "经常在建设巷看到她", "好像是滑板社的", 
+            "经常一个人吃饭，看起来很孤独", "总是和一帮男生混在一起", "上课老是睡觉", 
+            "大一早自习经常迟到被辅导员抓", "每次去快递站都能碰到她", "在健身房见过，身材练得不错",
+            "经常在银桦食堂二楼出没", "总是骑着一辆粉色电动车", "好像是学生会的部长，很忙",
+            "经常在年级群里发言", "很低调，几乎不发朋友圈", "经常在东湖边喂天鹅",
+            "据说推特有号，搜同名...", "有点反差，不太好说", "好像有男朋友", 
+            "不好评价", "听说是富姐", "不好追，眼光贼高", 
+            "听说性格很差，换了三个寝室了", "很多人追，但是都拒了", 
+            "前男友是我哥们，说她很作", "很sb", "别想了，已经订婚了好像", 
+            "听说是为了对象才考到这的", "脾气很大，动不动就拉黑人", "有点涩",
+            "川渝暴龙，脾气火爆", "听说前任是体院的帅哥", "好像是单身主义者",
+            "家里条件好像很好，出入车接车送", "据说很高冷，其实是社恐", "以前好像是校队的啦啦队",
+            "听说她是那一届的系花", "有点海王潜质，慎入", "据说只喜欢比自己小的",
+            "声音超甜，可以直接出道", "吃鸡大神，带飞过我一次", "学霸，绩点4.0那种", 
+            "会弹吉他，晚会见过", "玩原神", "画画的大触，wb有几十万粉", 
+            "也是老二次元了，漫展经常见", "喜欢cosplay，还原度很高", "代码写得比我都6", 
+            "游戏瘾少女，经常看到在打王者", "辩论队的，嘴皮子很溜",
+            "唱歌很好听，十佳歌手", "摄影大佬，经常帮人拍照", "PPT做得巨好看",
+            "会跳爵士舞，很顶", "经常拿奖学金，恐怖如斯", "好像在外面兼职模特",
+            "S+当之无愧", "yyds", "一般", "也就那样", "我的评价是：不如...", 
+            "求联系方式，有偿！", "女神啊啊啊啊", "这个真的可以", "有点像男的...", 
+            "太高冷了，发消息从来不回", "人挺好的，借过我笔记", "声音好听，人就算了", 
+            "别去招惹，会变得不幸", "看起来很乖，其实...", "一般般吧，没吹的那么神",
+            "谁有她微信？急急急", "这个必须冲", "感觉像整过容", "不太聪明的亚子", 
+            "说话嗲嗲的，受不了", "性格超级好，很温柔", "这就是传说中的那个？", 
+            "见面不如闻名", "确实好看，没话说", "好像是单身，兄弟们冲",
+            "泰酷辣", "纯路人，觉得一般", "有一说一，确实好看", "这个妹妹我曾见过的", 
+            "一眼万年", "可以，很强势", "绝绝子", "有点东西", "纯纯的把我看饿了", 
+            "这谁顶得住啊", "我不李姐", "很难不心动", "纯御风", "有点下头"
+        ];
+
+        // --- 动态生成词根 (用于组合出海量不重复评价) ---
+        const prefixes = ["感觉", "听室友说", "亲测", "据说", "有一说一", "讲真", "不得不说", "纯路人，", "怎么说呢，", "哇，", "我去，", "实话实说，"];
+        const adjs = ["超级", "巨", "贼", "特别", "有点", "非常", "意外地", "简直", "太", "稍微有点", "不怎么", "看着很"];
+        const nouns = ["高冷", "可爱", "温柔", "漂亮", "有气质", "会穿搭", "傲娇", "腹黑", "沙雕", "内向", "文静", "暴躁", "做作", "真实", "接地气", "女神", "御姐", "萝莉", "学霸", "社牛", "社恐"];
+        const suffixes = ["...", "！", "。", "！！！", "～", "😅", "🤔", "👎", "👍", "❤️", "（确信）", "（滑稽）", "（狗头）", "，爱了", "，慎入", "，推荐", "，不解释", "，真的"];
+
+        let database = [];
+
+        window.onload = function() {
+            populateCollegeSelect();
+            generateData();
+            renderTable();
+        };
+
+        function populateCollegeSelect() {
+            const select = document.getElementById('collegeSelect');
+            colleges.forEach(college => {
+                const option = document.createElement('option');
+                option.value = college;
+                option.text = college;
+                select.appendChild(option);
+            });
+        }
+
+        // 升级版名字生成
+        function generateUniqueNames(count) {
+            const namesSet = new Set();
+            const snList = surnames.split('');
+            const allChars = nameChars_Modern + nameChars_Classic + nameChars_Neutral + nameChars_Single;
+            
+            while(namesSet.size < count) {
+                const sn = snList[Math.floor(Math.random() * snList.length)];
+                let fn = "";
+                
+                // 30% 概率单字，70% 概率双字
+                if (Math.random() < 0.3) {
+                    fn = allChars[Math.floor(Math.random() * allChars.length)];
+                } else {
+                    const c1 = allChars[Math.floor(Math.random() * allChars.length)];
+                    const c2 = allChars[Math.floor(Math.random() * allChars.length)];
+                    fn = c1 + c2;
+                }
+                
+                // 复姓概率
+                let finalName = sn + fn;
+                if(Math.random() < 0.02) { 
+                    const doubleSn = ["欧阳", "上官", "皇甫", "慕容"][Math.floor(Math.random() * 4)];
+                    finalName = doubleSn + fn;
+                }
+                namesSet.add(finalName);
+            }
+            return Array.from(namesSet);
+        }
+
+        // 升级版评价生成器
+        function generateUniqueComments(count) {
+            const commentsSet = new Set();
+            
+            // 1. 先把精品库里的全放进去
+            for (let c of baseComments) {
+                commentsSet.add(c);
+                if (commentsSet.size >= count) break;
+            }
+
+            // 2. 如果不够，开始排列组合生成
+            while(commentsSet.size < count) {
+                // 模式1: 前缀 + 形容词 + 名词
+                if (Math.random() < 0.4) {
+                    const p = prefixes[Math.floor(Math.random() * prefixes.length)];
+                    const a = adjs[Math.floor(Math.random() * adjs.length)];
+                    const n = nouns[Math.floor(Math.random() * nouns.length)];
+                    const s = suffixes[Math.floor(Math.random() * suffixes.length)];
+                    commentsSet.add(p + a + n + s);
+                } 
+                // 模式2: 简单组合
+                else if (Math.random() < 0.7) {
+                     const n = nouns[Math.floor(Math.random() * nouns.length)];
+                     const a = adjs[Math.floor(Math.random() * adjs.length)];
+                     commentsSet.add(a + n); // e.g. 超级高冷
+                }
+                // 模式3: 精品库改造 (加后缀)
+                else {
+                    const base = baseComments[Math.floor(Math.random() * baseComments.length)];
+                    const suffix = suffixes[Math.floor(Math.random() * suffixes.length)];
+                    // 避免重复加标点
+                    let newC = base;
+                    if ([".", "!", "。", "～"].includes(newC.slice(-1))) {
+                        newC = newC.slice(0, -1);
+                    }
+                    commentsSet.add(newC + suffix);
+                }
+            }
+            
+            // 转换成数组并打乱
+            const arr = Array.from(commentsSet);
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function generateData() {
+            const uniqueNames = generateUniqueNames(TARGET_COUNT);
+            const uniqueComments = generateUniqueComments(TARGET_COUNT);
+
+            for (let i = 0; i < TARGET_COUNT; i++) {
+                const fullName = uniqueNames[i];
+
+                let college;
+                const rand = Math.random();
+                if(rand < 0.3) {
+                    const bigColleges = ["信息与通信工程学院", "电子科学与工程学院", "计算机科学与工程学院"];
+                    college = bigColleges[Math.floor(Math.random() * bigColleges.length)];
+                } else {
+                    college = colleges[Math.floor(Math.random() * colleges.length)];
+                }
+
+                const grade = grades[Math.floor(Math.random() * grades.length)];
+                
+                let rating;
+                const rRand = Math.random();
+                if (rRand < 0.08) rating = "S+";
+                else if (rRand < 0.25) rating = "S";
+                else rating = "A";
+
+                const prefix = ["138", "139", "158", "188", "199", "173", "159", "135", "180", "152"];
+                const phone = prefix[Math.floor(Math.random() * prefix.length)] + 
+                              Math.floor(Math.random() * 10000).toString().padStart(4, '0') + 
+                              Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+
+                database.push({
+                    id: i,
+                    name: fullName,
+                    college: college,
+                    grade: grade,
+                    phone: phone,
+                    rating: rating,
+                    comment: uniqueComments[i]
+                });
+            }
+        }
+
+        function renderTable() {
+            const collegeFilter = document.getElementById('collegeSelect').value;
+            const gradeFilter = document.getElementById('gradeSelect').value;
+            const tbody = document.getElementById('tableBody');
+            
+            tbody.innerHTML = ''; 
+
+            const filteredData = database.filter(item => {
+                const matchCollege = collegeFilter === 'all' || item.college === collegeFilter;
+                const matchGrade = gradeFilter === 'all' || item.grade === gradeFilter;
+                return matchCollege && matchGrade;
+            });
+
+            document.getElementById('count').innerText = filteredData.length;
+
+            if (filteredData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; color: #666;">该筛选条件下暂无数据...</td></tr>';
+                return;
+            }
+
+            filteredData.forEach(item => {
+                const row = document.createElement('tr');
+                
+                let ratingClass = "";
+                if (item.rating === "S+") ratingClass = "rating-s-plus";
+                else if (item.rating === "S") ratingClass = "rating-s";
+                else ratingClass = "rating-a";
+
+                row.innerHTML = `
+                    <td>${item.name}</td>
+                    <td>${item.college}</td>
+                    <td>${item.grade}</td>
+                    <td>${item.phone}</td>
+                    <td class="${ratingClass}">${item.rating}</td>
+                    <td style="text-align: left; padding-left: 15px;">${item.comment}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    </script>
+</body>
+</html>
