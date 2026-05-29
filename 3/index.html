@@ -440,8 +440,8 @@
             { text: "处女座/重度洁癖", color: "bg-sky-700", risk: {}, safeChance: 0.8, clue: "进门先洗半小时澡，甚至要求你也洗两遍。安全感满满。", hiddenChance: 0 },
             { text: "定期献血者", color: "bg-emerald-700", risk: {}, safeChance: 0.9, clue: "血站会进行严格的核酸检测，能献血说明血液大概率干净。", hiddenChance: 0.4 },
             { text: "当面拆封阴性检测单", color: "bg-emerald-700", risk: {}, safeChance: 0.95, clue: "目前最可靠的凭证（注意看日期是不是最近的）。", hiddenChance: 0.5 },
-            { text: "包里自备各种安全套", color: "bg-sky-700", risk: {}, safetyBonus: true, constraint: "condom_only", clue: "安全意识极强，大概率对自己和他人都负责。", hiddenChance: 0.3 },
-            { text: "明确拒绝无套提议", color: "bg-sky-700", risk: {}, safetyBonus: true, constraint: "condom_only", clue: "有原则的人通常比较安全。", hiddenChance: 0 },
+            { text: "包里自备各种安全套", color: "bg-sky-700", risk: {}, constraint: "condom_only", clue: "安全意识极强，大概率对自己和他人都负责。", hiddenChance: 0.3 },
+            { text: "明确拒绝无套提议", color: "bg-sky-700", risk: {}, constraint: "condom_only", clue: "有原则的人通常比较安全。", hiddenChance: 0 },
             { text: "马拉松/铁三运动员", color: "bg-emerald-600", risk: {}, safeChance: 0.7, clue: "生活极度自律，身体素质好，免疫力强。", hiddenChance: 0 },
             // 限制
             { text: "急性子/不想洗澡", color: "bg-amber-800", risk: { GONORRHEA: 0.2 }, constraint: "no_oral", clue: "【限制】嫌麻烦，不洗澡太脏了，拒绝口交。", hiddenChance: 0.3 },
@@ -522,6 +522,8 @@
                 if (tagTemplate.constraint) {
                     if (tagTemplate.constraint === 'no_oral' && currentConstraints.includes('oral_only')) continue;
                     if (tagTemplate.constraint === 'oral_only' && currentConstraints.includes('no_oral')) continue;
+                    if (tagTemplate.constraint === 'no_condom' && currentConstraints.includes('condom_only')) continue;
+                    if (tagTemplate.constraint === 'condom_only' && currentConstraints.includes('no_condom')) continue;
                 }
                 selectedIndices.add(idx);
                 let isHidden = false;
@@ -536,12 +538,16 @@
                 const keys = Object.keys(DISEASES);
                 activeDiseases.push(keys[Math.floor(Math.random() * keys.length)]);
             }
+            // 先结算风险词条（可能叠加多种疾病）
             partnerTags.forEach(tag => {
                 if (tag.risk) {
                     for (const [dKey, prob] of Object.entries(tag.risk)) {
                         if (Math.random() < prob && !activeDiseases.includes(dKey)) activeDiseases.push(dKey);
                     }
                 }
+            });
+            // 后结算安全词条（全部清除）
+            partnerTags.forEach(tag => {
                 if (tag.safeChance && Math.random() < tag.safeChance) activeDiseases = [];
             });
 
@@ -661,6 +667,7 @@
             const btn = document.getElementById(id);
             if (!btn.disabled) {
                 btn.disabled = true;
+                btn.style.position = 'relative';
                 btn.classList.add('btn-disabled');
                 const span = document.createElement('div');
                 span.className = 'disabled-overlay absolute inset-0 flex items-center justify-center bg-black/60 text-rose-500 font-bold rotate-[-3deg] text-[10px] uppercase border border-rose-500/30 rounded-xl backdrop-blur-[1px]';
@@ -856,8 +863,7 @@
 
             recordHistory(actionType, infectedThisTurn);
 
-            STATE.frustration -= reduction;
-            const frustrationDelta = CONFIG.passiveGain - reduction;
+            const frustrationDelta = -reduction;
             
             if (advanceTime(frustrationDelta, anxietyGain)) return; 
             
